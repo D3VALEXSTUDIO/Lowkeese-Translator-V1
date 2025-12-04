@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Lowkeese v2 Translator</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    * {
+      box-sizing: border-box;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    body {
+      margin: 0;
+      padding: 0;
+      background: #0f172a;
+      color: #e5e7eb;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      min-height: 100vh;
+    }
+
+    .app {
+      margin: 24px;
+      max-width: 900px;
+      width: 100%;
+      background: #020617;
+      border-radius: 18px;
+      padding: 20px 22px 24px;
+      box-shadow: 0 18px 45px rgba(15, 23, 42, 0.8);
+      border: 1px solid #1f2937;
+    }
+
+    h1 {
+      margin-top: 0;
+      font-size: 1.7rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    h1 span {
+      font-size: 1.2rem;
+      opacity: 0.7;
+    }
+
+    .subtitle {
+      margin-top: 2px;
+      font-size: 0.9rem;
+      color: #9ca3af;
+    }
+
+    .panels {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-top: 18px;
+    }
+
+    @media (max-width: 768px) {
+      .panels {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .panel {
+      background: #020617;
+      border-radius: 14px;
+      border: 1px solid #111827;
+      padding: 12px 12px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .panel-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.85rem;
+      color: #9ca3af;
+    }
+
+    label {
+      font-size: 0.85rem;
+      color: #9ca3af;
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 140px;
+      resize: vertical;
+      padding: 10px;
+      border-radius: 10px;
+      border: 1px solid #111827;
+      background: #020617;
+      color: #e5e7eb;
+      font-size: 0.95rem;
+      outline: none;
+    }
+
+    textarea:focus {
+      border-color: #22c55e;
+      box-shadow: 0 0 0 1px rgba(34, 197, 94, 0.35);
+    }
+
+    .buttons-row {
+      margin-top: 14px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    button {
+      border: none;
+      border-radius: 999px;
+      padding: 8px 16px;
+      font-size: 0.9rem;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: #111827;
+      color: #e5e7eb;
+      transition: transform 0.08s ease, box-shadow 0.08s ease, background 0.15s ease;
+    }
+
+    button.primary {
+      background: #22c55e;
+      color: #022c22;
+      font-weight: 600;
+    }
+
+    button:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 8px 18px rgba(15, 23, 42, 0.75);
+    }
+
+    button:active {
+      transform: translateY(0);
+      box-shadow: none;
+    }
+
+    .hint {
+      margin-top: 12px;
+      font-size: 0.8rem;
+      color: #6b7280;
+    }
+
+    .hint code {
+      background: #020617;
+      padding: 2px 5px;
+      border-radius: 4px;
+      border: 1px solid #111827;
+      font-size: 0.78rem;
+    }
+
+    .mode-pill {
+      padding: 2px 8px;
+      border-radius: 999px;
+      border: 1px solid #1f2937;
+      background: #020617;
+      font-size: 0.75rem;
+      color: #9ca3af;
+    }
+
+    .footer {
+      margin-top: 16px;
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      font-size: 0.75rem;
+      color: #4b5563;
+      flex-wrap: wrap;
+    }
+
+    .footer span strong {
+      color: #9ca3af;
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <h1>
+      Lowkeese v2 Translator
+      <span>🌐 lowkey-only language</span>
+    </h1>
+    <div class="subtitle">
+      Type a sentence in <strong>English</strong> or <strong>Lowkeese v2</strong> and translate either way.
+    </div>
+
+    <div class="panels">
+      <div class="panel">
+        <div class="panel-header">
+          <span>Input</span>
+          <span class="mode-pill">Auto-detect language</span>
+        </div>
+        <textarea
+          id="inputText"
+          placeholder="Example: Hello, my name is Ashley."
+        ></textarea>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">
+          <span>Output</span>
+          <span class="mode-pill" id="outputModeLabel">–</span>
+        </div>
+        <textarea
+          id="outputText"
+          placeholder="Translation will appear here…"
+          readonly
+        ></textarea>
+      </div>
+    </div>
+
+    <div class="buttons-row">
+      <button class="primary" id="btnEnToLow">
+        English → Lowkeese
+      </button>
+      <button id="btnLowToEn">
+        Lowkeese → English
+      </button>
+      <button id="btnDetect">
+        Auto detect &amp; translate
+      </button>
+      <button id="btnClear">
+        Clear
+      </button>
+    </div>
+
+    <div class="hint">
+      <strong>Notes:</strong> This is a simple, rule-based translator for the
+      made-up language <code>Lowkeese v2</code>. Unknown words (like names)
+      are normally kept as they are.
+    </div>
+
+    <div class="footer">
+      <span>Built for the <strong>Lowkey dictionary</strong> gang 🧠✨</span>
+      <span>Root word: <strong>lowkey</strong> – everything else is vibes.</span>
+    </div>
+  </div>
+
+  <script src="lowkeese.js"></script>
+</body>
+</html>
