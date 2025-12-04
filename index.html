@@ -178,6 +178,45 @@
     .footer span strong {
       color: #9ca3af;
     }
+
+    .teach {
+      margin-top: 18px;
+      padding: 10px 12px 12px;
+      border-radius: 14px;
+      border: 1px solid #111827;
+      background: #020617;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .teach-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .teach-row input {
+      flex: 1 1 130px;
+      min-width: 0;
+      padding: 7px 10px;
+      border-radius: 999px;
+      border: 1px solid #111827;
+      background: #020617;
+      color: #e5e7eb;
+      font-size: 0.85rem;
+      outline: none;
+    }
+
+    .teach-row input:focus {
+      border-color: #22c55e;
+      box-shadow: 0 0 0 1px rgba(34, 197, 94, 0.35);
+    }
+
+    .teach small {
+      font-size: 0.75rem;
+      color: #6b7280;
+    }
   </style>
 </head>
 <body>
@@ -230,10 +269,31 @@
       </button>
     </div>
 
+    <div class="teach">
+      <strong>Teach the dictionary 📚</strong>
+      <div class="teach-row">
+        <input
+          type="text"
+          id="teachEnglish"
+          placeholder="English word or phrase (e.g. school)"
+        />
+        <input
+          type="text"
+          id="teachLowkeese"
+          placeholder="Lowkeese meaning (e.g. lowkē lowkey)"
+        />
+        <button id="btnTeach">Add</button>
+      </div>
+      <small>
+        Custom words are saved in your browser. This lets Lowkeese grow until it
+        *feels* like it knows the whole English dictionary.
+      </small>
+    </div>
+
     <div class="hint">
       <strong>Notes:</strong> This is a simple, rule-based translator for the
-      made-up language <code>Lowkeese v2</code>. Unknown words (like names)
-      are normally kept as they are.
+      made-up language <code>Lowkeese v2</code>. Unknown words fall back to
+      automatic patterns or your custom dictionary.
     </div>
 
     <div class="footer">
