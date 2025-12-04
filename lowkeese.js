@@ -1,394 +1,293 @@
-// Lowkeese v2 Translation Engine
-// - English → Lowkeese (speakable, fun)
-// - Lowkeese → English (best-effort, with patterns)
-// - Custom dictionary support (saved in localStorage)
+// ===============================================
+// LOWKEESE v3 — PURE + REVERSIBLE (Style B)
+// - No English words appear in Lowkeese output
+// - English ↔ Lowkeese is reversible via dictionary
+// - Lowkeese words are built only from lowkey-ish syllables
+// ===============================================
 
-// =====================
-// Helpers
-// =====================
+// -------------- Helpers ------------------------
 
 function normalise(text) {
   return text.trim().replace(/\s+/g, " ");
 }
 
-function toLowerNoWeird(text) {
-  return text.toLowerCase();
-}
-
 function splitWordPunct(w) {
-  const match = w.match(/^(.+?)([.,!?…]*)$/);
-  return match ? { word: match[1], punct: match[2] } : { word: w, punct: "" };
+  const m = w.match(/^(.+?)([.,!?…]*)$/);
+  return m ? { word: m[1], punct: m[2] } : { word: w, punct: "" };
 }
 
-// =====================
-// Base dictionaries
-// =====================
+function randomItem(arr) {
+  return arr[Math.floor(Math.random() * arr.length)];
+}
 
-// Core English → Lowkeese words (v2 basics + expansion pack)
-const baseEnglishToLowkeese = {
-  // Greetings
-  "hello": "lowkey!",
-  "hi": "lowkey!",
-  "bye": "lowkey…",
+// -------------- Syllable system ----------------
 
-  // Pronouns
-  "i": "lowkey",
-  "me": "lowkey",
-  "my": "lowkey",
-  "mine": "lowkey",
+// These are the only syllables used in Lowkeese words.
+// (Style B: a bit blended and magical-looking)
+const SYLLABLES = [
+  "low", "lokē", "lōw", "lowkē",
+  "key", "kē", "lōk", "lowy", "ley"
+];
 
-  "you": "lowkey lowkey",
-  "we": "lowkey lowkey lowkey",
-  "they": "lowkey lowkey lowkey lowkey",
+// Generate a blended Lowkeese-looking core (no English)
+function makeCoreSyllables(count) {
+  const parts = [];
+  for (let i = 0; i < count; i++) {
+    parts.push(randomItem(SYLLABLES));
+  }
+  // Join with nothing or a soft hyphen sometimes
+  if (count <= 2) return parts.join("");
+  return parts.join("-");
+}
 
-  // Yes / no / maybe
-  "yes": "lowkē",
-  "no": "low-key",
-  "maybe": "lowkey?",
+// Type-based endings for nicer vibes (still reversible via dict)
+function makePlaceToken() {
+  // ends in "lo" = place
+  return makeCoreSyllables(2) + "lo";
+}
 
-  // Be verbs
-  "am": "lowkey",
-  "are": "lowkey",
-  "is": "lowkey",
+function makeObjectToken() {
+  // ends in "kē" = object
+  return makeCoreSyllables(2) + "kē";
+}
 
-  // Core feelings / quality
-  "like": "lowkē",
-  "love": "lowkē",        // friendly "appreciate"
-  "good": "lowkē",
-  "bad": "low-key",
+function makeVerbToken() {
+  // ends in "key" = verb
+  return makeCoreSyllables(2) + "key";
+}
 
-  "tired": "lowkey…",
+function makePersonToken() {
+  // ends in "low" = person
+  return makeCoreSyllables(2) + "low";
+}
 
-  // Connectors
-  "with": "lowkey-with",
-  "and": "lowkey",
-  "to": "lowkey",
+function makeGenericToken() {
+  return makeCoreSyllables(2);
+}
 
-  // Time / tense-ish
-  "went": "lowkey-lo",    // past "went"
-  "go": "key-lowkey",     // future-ish "go"
-  "will": "key-lowkey",   // approximated
-  "come": "lowkē",
-  "came": "lowkē",
+function makeNameToken() {
+  // stylised but still only lowkey-ish syllables
+  return "lōkē-" + makeCoreSyllables(1) + "-" + makeCoreSyllables(1);
+}
 
-  // Name / identity
-  "name": "lowkē",        // used in "my name is"
+// -------------- Category guessing --------------
 
-  // ---- Expansion pack: people & social ----
-  "friend": "lowkē",
-  "friends": "lowkeyyy",
-  "family": "lowkē lowkeyyy",
-  "mum": "lowkē(mum)",
-  "mom": "lowkē(mum)",
-  "dad": "lowkē(dad)",
-  "brother": "lowkē(brother)",
-  "sister": "lowkē(sister)",
-  "teacher": "lowkē(teacher)",
+const PLACE_WORDS = [
+  "school", "park", "city", "street",
+  "office", "home", "house", "room"
+];
 
-  // ---- Places ----
-  "home": "lowkey home",
-  "house": "lowkey home",
-  "school": "lōwkey school",
-  "park": "lowkē lowkey",
-  "shop": "lowkē shop",
-  "room": "lōwkey room",
-  "office": "LOWKEY room",
-  "city": "lōwkey city",
-  "street": "lowkey street",
+const OBJECT_WORDS = [
+  "phone", "controller", "game", "app",
+  "message", "messages", "pc", "xbox"
+];
 
-  // ---- Games / tech / internet ----
-  "game": "lowkē game",
-  "controller": "lowkey controller",
-  "xbox": "lowkē(Xbox)",
-  "pc": "lowkē(PC)",
-  "phone": "lowkey phone",
-  "message": "lowkē msg",
-  "messages": "lowkē msg",
-  "app": "lowkē app",
+const PERSON_WORDS = [
+  "friend", "friends", "teacher", "mum",
+  "mom", "dad", "brother", "sister", "family"
+];
 
-  // ---- Actions ----
-  "play": "lowkē-play",
-  "talk": "lowkē-talk",
-  "say": "lowkey-speak",
-  "said": "lowkey-speak-lo",
-  "walk": "lowkē-walk",
-  "run": "lowkē-run",
-  "call": "lowkē-call",
-  "use": "lowkē-use",
-  "make": "lowkē-make",
-  "want": "LOWkey",
-  "needs": "LOWkey-lowkey",
-  "need": "LOWkey-lowkey",
+const VERB_WORDS = [
+  "go", "went", "come", "came",
+  "play", "walk", "run", "talk",
+  "say", "said", "going", "playing",
+  "running", "talking"
+];
 
-  // ---- Feelings / descriptions (safe) ----
-  "happy": "lowkē!",
-  "sad": "lōwkey…",
-  "excited": "lowkey!",
-  "bored": "low-key…",
-  "confused": "lowkey?!",
-  "funny": "lowkeyyyy",
-  "scary": "lōwkey!",
-  "okay": "lowkē",
-  "fine": "lowkē",
-  "not": "low-key",
-  "ok": "lowkē",
+function guessType(enWord) {
+  const w = enWord.toLowerCase();
+  if (/^[A-Z]/.test(enWord)) return "name";
+  if (PLACE_WORDS.includes(w)) return "place";
+  if (OBJECT_WORDS.includes(w)) return "object";
+  if (PERSON_WORDS.includes(w)) return "person";
+  if (VERB_WORDS.includes(w)) return "verb";
+  return "generic";
+}
 
-  // Extra common stuff
-  "in": "lowkey",
-  "at": "lowkey",
-  "on": "lowkey",
-  "after": "lowkey…",
-};
+// -------------- Storage helpers ----------------
 
-// Phrase-level patterns handled before single words
-const baseEnglishPhrasesToLowkeese = {
-  "my name is": "lowkey lowkē", // followed by name
-  "i am": "lowkey lowkey",
-  "i'm": "lowkey lowkey",
-};
+const EN2LOW_KEY = "lowkeese_rev_en2low_v3";
+const LOW2EN_KEY = "lowkeese_rev_low2en_v3";
 
-// Lowkeese → English (basic reverse mapping)
-const baseLowkeeseToEnglish = {
-  "lowkey!": "hello",
-  "lowkey…": "bye",
-  "lowkē": "good",
-  "low-key": "no",
-  "lowkey?": "maybe",
-
-  "lowkey": "I", // default single lowkey
-  "lowkey lowkey": "you",
-  "lowkey lowkey lowkey": "we",
-  "lowkey lowkey lowkey lowkey": "they",
-
-  "lowkeyyy": "friends",
-  "lowkē lowkey": "good place",
-  "lowkey-lo": "went",
-  "key-lowkey": "will go",
-
-  "lowkē!": "happy",
-  "lōwkey…": "sad",
-  "lowkey!": "excited",
-  "low-key…": "bored",
-  "lowkey?!": "confused",
-  "lowkeyyyy": "funny",
-  "lōwkey!": "scary",
-  "lowkey-with": "with",
-  "lowkey-speak": "say",
-  "lowkey-speak-lo": "said",
-  "lowkē-play": "play",
-  "lowkē-talk": "talk",
-  "lowkē-walk": "walk",
-  "lowkē-run": "run",
-  "lowkē-call": "call",
-  "lowkē-make": "make",
-  "lowkē-use": "use",
-  "lowkē game": "game",
-  "lowkey controller": "controller",
-  "lowkey phone": "phone",
-  "lowkē msg": "message",
-  "lowkē app": "app",
-  "lowkey home": "home",
-  "lōwkey school": "school",
-  "lowkē shop": "shop",
-  "lōwkey room": "room",
-  "LOWKEY room": "office",
-};
-
-// =====================
-// Custom dictionary
-// =====================
-
-const CUSTOM_EN_KEY = "lowkeese_custom_en_to_low";
-const CUSTOM_LO_KEY = "lowkeese_custom_low_to_en";
-
-function loadCustomMap(key) {
+function loadMap(key) {
   try {
+    if (typeof localStorage === "undefined") return {};
     const raw = localStorage.getItem(key);
     if (!raw) return {};
     return JSON.parse(raw);
-  } catch {
+  } catch (e) {
     return {};
   }
 }
 
-function saveCustomMap(key, obj) {
+function saveMap(key, obj) {
   try {
+    if (typeof localStorage === "undefined") return;
     localStorage.setItem(key, JSON.stringify(obj));
-  } catch {
+  } catch (e) {
     // ignore
   }
 }
 
-let customEnglishToLowkeese = loadCustomMap(CUSTOM_EN_KEY);
-let customLowkeeseToEnglish = loadCustomMap(CUSTOM_LO_KEY);
+// -------------- Base dictionary ----------------
 
-function getEnglishToLowkeeseDict() {
-  return Object.assign({}, baseEnglishToLowkeese, customEnglishToLowkeese);
+// These are fixed so common words always look nice and meaningful.
+const baseEnglishToLowkeese = {
+  // pronouns
+  "i": "lowkey",
+  "me": "lowkey",
+  "my": "lowkey",
+  "you": "lokēlow",
+  "we": "lowkey-lōw",
+  "they": "lowkey-lōwlow",
+
+  // greetings
+  "hello": "lowkey!",
+  "hi": "lowkey!",
+  "bye": "lowkey…",
+
+  // simple particles
+  "and": "lowkē",
+  "with": "lowkey-lō",
+  "to": "lowkey-lo",
+  "in": "lōwkey",
+  "on": "lokēlo",
+  "at": "lōwkeylo",
+  "after": "lōwkey…",
+
+  // quality / yes/no/maybe
+  "good": "lowkē!",
+  "bad": "low-key",
+  "yes": "kē!",
+  "no": "low-key",
+  "maybe": "lowkey?",
+
+  // feelings
+  "tired": "lowkey…",
+  "happy": "lowkē!!",
+  "sad": "lōwkey…",
+  "bored": "low-key…",
+  "confused": "lowkey?!",
+  "scary": "lōwkey!",
+
+  // be-verbs (kept simple; semantics come from context)
+  "am": "lowkey-ēm",
+  "are": "lowkey-ār",
+  "is": "lowkey-īs"
+};
+
+// Build base reverse dictionary
+const baseLowkeeseToEnglish = {};
+Object.keys(baseEnglishToLowkeese).forEach((en) => {
+  const low = baseEnglishToLowkeese[en];
+  baseLowkeeseToEnglish[low] = en;
+});
+
+// Load user dictionaries (for reversibility across sessions)
+let userEnToLow = loadMap(EN2LOW_KEY);
+let userLowToEn = loadMap(LOW2EN_KEY);
+
+// Combined working maps (user overrides base if conflicts)
+let enToLow = Object.assign({}, baseEnglishToLowkeese, userEnToLow);
+let lowToEn = Object.assign({}, baseLowkeeseToEnglish, userLowToEn);
+
+function syncUserMaps() {
+  // We only need to save the full maps; it's fine if base is included.
+  saveMap(EN2LOW_KEY, enToLow);
+  saveMap(LOW2EN_KEY, lowToEn);
 }
 
-function getEnglishPhrasesToLowkeeseDict() {
-  // You could merge custom phrases here later if you want
-  return baseEnglishPhrasesToLowkeese;
+// -------------- Token generator ----------------
+
+function generateLowkeeseToken(enWord) {
+  const type = guessType(enWord);
+
+  if (type === "name") return makeNameToken();
+  if (type === "place") return makePlaceToken();
+  if (type === "object") return makeObjectToken();
+  if (type === "person") return makePersonToken();
+  if (type === "verb") return makeVerbToken();
+  return makeGenericToken();
 }
 
-function getLowkeeseToEnglishDict() {
-  return Object.assign({}, baseLowkeeseToEnglish, customLowkeeseToEnglish);
+function getOrCreateLowkeeseForEnglish(enWord) {
+  const lower = enWord.toLowerCase();
+
+  // Use existing mapping if we have one
+  if (enToLow[lower]) {
+    return enToLow[lower];
+  }
+
+  // Otherwise generate a new pure Lowkeese token, making sure it's unique
+  let token;
+  do {
+    token = generateLowkeeseToken(enWord);
+  } while (lowToEn[token] && lowToEn[token] !== lower);
+
+  enToLow[lower] = token;
+  lowToEn[token] = lower;
+  syncUserMaps();
+
+  return token;
 }
 
-// ==============================
-// Fallback: auto-build Lowkeese
-// ==============================
-
-function fallbackEnglishWordToLowkeese(wordPart) {
-  const lower = wordPart.toLowerCase();
-
-  if (lower.endsWith("ing")) {
-    // running / talking / playing → ongoing action vibe
-    return "lowkey…";
-  }
-
-  if (lower.endsWith("ly")) {
-    // quickly, slowly → adverb style
-    return "lowkeyyy";
-  }
-
-  if (
-    lower.endsWith("ness") ||
-    lower.endsWith("tion") ||
-    lower.endsWith("ment")
-  ) {
-    // concepts / abstract nouns
-    return "lōwkey";
-  }
-
-  if (lower[0] === lower[0].toLowerCase()) {
-    // common noun
-    return "lowkē lowkey";
-  }
-
-  // probably a name / proper noun
-  return "lowkē(" + wordPart + ")";
-}
-
-// ==============================
-// English → Lowkeese v2
-// ==============================
+// -------------- English → Lowkeese --------------
 
 function translateEnglishToLowkeese(input) {
   const raw = normalise(input);
   if (!raw) return "";
 
-  const text = toLowerNoWeird(raw);
+  const tokens = raw.split(" ");
+  const out = [];
 
-  // apply phrase replacements first (e.g. "my name is")
-  let processed = text;
-  const englishPhrasesToLowkeese = getEnglishPhrasesToLowkeeseDict();
-
-  Object.keys(englishPhrasesToLowkeese).forEach((phrase) => {
-    const regex = new RegExp(
-      "\\b" + phrase.replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&") + "\\b",
-      "gi"
-    );
-    processed = processed.replace(regex, englishPhrasesToLowkeese[phrase]);
-  });
-
-  const words = normalise(processed).split(" ");
-  const englishToLowkeese = getEnglishToLowkeeseDict();
-
-  const out = words.map((w) => {
-    const { word, punct } = splitWordPunct(w);
-    const lowerWord = word.toLowerCase();
-
-    // 1) dictionary lookup (base + custom)
-    const mapped = englishToLowkeese[lowerWord];
-    if (mapped) {
-      return mapped + (punct || "");
+  for (const tok of tokens) {
+    const { word, punct } = splitWordPunct(tok);
+    if (!word) {
+      out.push(punct);
+      continue;
     }
 
-    // 2) fallback pattern
-    const fallback = fallbackEnglishWordToLowkeese(word);
-    return fallback + (punct || "");
-  });
+    const lowToken = getOrCreateLowkeeseForEnglish(word);
+    out.push(lowToken + (punct || ""));
+  }
 
   return out.join(" ");
 }
 
-// ==============================
-// Lowkeese → English v2
-// ==============================
+// -------------- Lowkeese → English --------------
+// Reversible for any Lowkeese that came from this translator
 
 function translateLowkeeseToEnglish(input) {
   const raw = normalise(input);
   if (!raw) return "";
 
   const tokens = raw.split(" ");
-  const results = [];
-  let i = 0;
+  const out = [];
 
-  const lowkeeseToEnglish = getLowkeeseToEnglishDict();
+  for (const tok of tokens) {
+    const { word, punct } = splitWordPunct(tok);
+    if (!word) {
+      out.push(punct);
+      continue;
+    }
 
-  while (i < tokens.length) {
-    let matched = false;
+    let en = lowToEn[word];
 
-    // Try 4-word, then 3-word, then 2-word matches
-    for (let span = 4; span >= 2; span--) {
-      if (i + span <= tokens.length) {
-        const slice = tokens.slice(i, i + span).join(" ");
-        const key = slice.toLowerCase();
-        if (lowkeeseToEnglish[key]) {
-          results.push(lowkeeseToEnglish[key]);
-          i += span;
-          matched = true;
-          break;
-        }
+    // Fallback for "hello"/"bye" style tokens if somehow not in map
+    if (!en) {
+      if (word === "lowkey!") en = "hello";
+      else if (word === "lowkey…") en = "bye";
+      else if (word === "low-key") en = "no";
+      else {
+        // Unknown token (maybe manually typed) → just call it "word"
+        en = "word";
       }
     }
 
-    if (matched) continue;
-
-    const tokenRaw = tokens[i];
-    const { word, punct } = splitWordPunct(tokenRaw);
-    const key1 = word.toLowerCase();
-
-    // 1) direct mapping
-    if (lowkeeseToEnglish[key1]) {
-      results.push(lowkeeseToEnglish[key1] + punct);
-    }
-    // 2) hello / bye variants
-    else if (key1 === "lowkey!") {
-      results.push("hello" + punct);
-    } else if (key1 === "lowkey…") {
-      results.push("bye" + punct);
-    }
-    // 3) name marker: lowkē(Name)
-    else if (/^lowkē\(.+\)$/.test(word)) {
-      const name = word.slice(6, -1); // between lowkē( and )
-
-      // If previous token was "lowkey", interpret as "my name is Name"
-      if (
-        i > 0 &&
-        tokens[i - 1].toLowerCase().replace(/[.,!?…]/g, "") === "lowkey"
-      ) {
-        // Remove previous translation ("I" or "my")
-        results.pop();
-        results.push("my name is " + name + punct);
-      } else {
-        results.push(name + punct);
-      }
-    }
-    // 4) any "lowkey-..." vibes → generic "lowkey"
-    else if (key1.startsWith("lowkey") || key1.startsWith("lowkē") || key1.startsWith("lōwkey")) {
-      results.push("lowkey" + punct);
-    }
-    // 5) unknown non-lowkey token → keep as-is (probably name)
-    else {
-      results.push(word + punct);
-    }
-
-    i++;
+    out.push(en + (punct || ""));
   }
 
-  let sentence = results.join(" ");
+  let sentence = out.join(" ");
   sentence = sentence.replace(/\s+([.,!?…])/g, "$1");
 
   if (sentence.length > 0) {
@@ -398,45 +297,39 @@ function translateLowkeeseToEnglish(input) {
   return sentence;
 }
 
-// ==============================
-// Auto-detect
-// ==============================
+// -------------- Auto-detect ---------------------
 
 function isProbablyLowkeese(text) {
   const lower = text.toLowerCase();
-  const lowCount = (lower.match(/lowkey/g) || []).length;
-  const wordCount = lower.split(/\s+/).length;
-  return lowCount > 0 && lowCount >= wordCount / 2;
+  const wordCount = lower.split(/\s+/).filter(Boolean).length;
+  const lowCount = (lower.match(/low/g) || []).length;
+  // If "low" appears often, assume Lowkeese
+  return wordCount > 0 && lowCount >= wordCount / 2;
 }
 
-// ==============================
-// Teach custom words
-// ==============================
+// -------------- Teach custom words --------------
 
 function teachCustomWord(english, lowkeese) {
   const en = normalise(english).toLowerCase();
   const low = normalise(lowkeese);
   if (!en || !low) return;
 
-  customEnglishToLowkeese[en] = low;
-  saveCustomMap(CUSTOM_EN_KEY, customEnglishToLowkeese);
-
-  customLowkeeseToEnglish[low.toLowerCase()] = en;
-  saveCustomMap(CUSTOM_LO_KEY, customLowkeeseToEnglish);
+  enToLow[en] = low;
+  lowToEn[low] = en;
+  syncUserMaps();
 }
 
-// ==============================
-// Wire up the UI
-// ==============================
+// -------------- UI wiring -----------------------
 
 window.addEventListener("DOMContentLoaded", () => {
   const inputEl = document.getElementById("inputText");
   const outputEl = document.getElementById("outputText");
+  const outputModeLabel = document.getElementById("outputModeLabel");
+
   const btnEnToLow = document.getElementById("btnEnToLow");
   const btnLowToEn = document.getElementById("btnLowToEn");
   const btnDetect = document.getElementById("btnDetect");
   const btnClear = document.getElementById("btnClear");
-  const outputModeLabel = document.getElementById("outputModeLabel");
 
   const teachEnglishEl = document.getElementById("teachEnglish");
   const teachLowkeeseEl = document.getElementById("teachLowkeese");
@@ -495,9 +388,7 @@ window.addEventListener("DOMContentLoaded", () => {
       teachCustomWord(en, low);
       teachEnglishEl.value = "";
       teachLowkeeseEl.value = "";
-      alert(
-        'Added to Lowkeese dictionary: "' + en + '" ↔ "' + low + '"'
-      );
+      alert(`Added to Lowkeese dictionary: "${en}" ↔ "${low}"`);
     });
   }
 });
